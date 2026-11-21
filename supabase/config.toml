@@ -1,0 +1,15 @@
+project_id = "daegu-idea-lab"
+
+[auth]
+site_url = "https://mercury0925.github.io/daegu-idea-lab/auth.html"
+additional_redirect_urls = ["https://mercury0925.github.io/daegu-idea-lab/auth.html", "http://localhost:5173/daegu-idea-lab/auth.html"]
+enable_signup = false
+enable_anonymous_sign_ins = false
+minimum_password_length = 8
+
+[auth.email]
+enable_signup = false
+enable_confirmations = true
+
+[functions.team-admin]
+verify_jwt = false

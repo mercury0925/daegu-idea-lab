@@ -25,7 +25,10 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: |
-          test -n "$VITE_SUPABASE_URL" && test -n "$VITE_SUPABASE_PUBLISHABLE_KEY" || { echo "Configure Supabase repository variables first."; exit 1; }
+          if ! [[ "$VITE_SUPABASE_URL" =~ ^https://[A-Za-z0-9.-]+/?$ && "$VITE_SUPABASE_PUBLISHABLE_KEY" =~ ^sb_publishable_[A-Za-z0-9_-]+$ ]]; then
+            echo "Configure a valid Supabase URL and publishable key in repository variables."
+            exit 1
+          fi
           npm run build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}

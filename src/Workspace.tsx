@@ -13,6 +13,8 @@ const pages = [
   ['/tasks','업무 관리',Columns3], ['/compare','최종 후보 비교',GitCompare], ['/settings','설정',Settings],
 ] as const
 const kinds = {ideas:'idea',resources:'resource',similar:'similar',tasks:'task'} as const
+type Activity = { id:string; actor_id:string; item_kind:Kind|'evaluation'; item_title:string; operation:'INSERT'|'UPDATE'|'DELETE'; created_at:string }
+const actionLabels = {INSERT:'등록',UPDATE:'수정',DELETE:'삭제'}
 type Editor = { kind:Kind; entry?:Entry; ideaId?:string }
 
 export function Workspace({user}:{user:User}) {
@@ -20,6 +22,7 @@ export function Workspace({user}:{user:User}) {
   const [entries,setEntries] = useState<Entry[]>([])
   const [scores,setScores] = useState<Score[]>([])
   const [links,setLinks] = useState<Link[]>([])
+  const [activity,setActivity] = useState<Activity[]>([])
   const [message,setMessage] = useState('')
   const [failure,setFailure] = useState('')
   const [editor,setEditor] = useState<Editor>()
@@ -35,6 +38,7 @@ export function Workspace({user}:{user:User}) {
       client.from('records').select('*').order('created_at',{ascending:false}),
       client.from('evaluations').select('*'),
       client.from('idea_resources').select('*'),
+      client.from('activity_logs').select('*').order('created_at',{ascending:false}).limit(6),
     ])
     const error = result.find(item => item.error)?.error
     if (error) { setFailure(error.message); return }
@@ -43,6 +47,7 @@ export function Workspace({user}:{user:User}) {
     setEntries(result[1].data as Entry[])
     setScores(result[2].data as Score[])
     setLinks(result[3].data as Link[])
+    setActivity(result[4].data as Activity[])
   },[])
   useEffect(() => {
     void load()
@@ -152,7 +157,7 @@ export function Workspace({user}:{user:User}) {
           <div className="hero"><div><span>제안서 제출 마감</span><h2>{daysLeft >= 0 ? 'D-' + daysLeft : '마감 종료'}</h2><p>{deadline.replace('T',' ')} KST</p></div><div className="hero-mark" aria-hidden="true">D</div></div>
           <div className="stats">{[['전체 아이디어',ideas.length],['자료 조사',ideas.filter(i=>i.data.status==='자료 조사').length],['유사 서비스 검증 통과',new Set(entries.filter(e=>e.kind==='similar'&&e.idea_id&&e.data.status==='검증 통과').map(e=>e.idea_id)).size],['최종 후보',ideas.filter(i=>i.data.status==='최종 후보'&&!excluded(i)).length]].map(([label,value]) => <div className="card" key={label}><small>{label}</small><strong>{value}</strong></div>)}</div>
           {([['최근 아이디어','idea'],['최근 자료','resource'],['팀 업무','task']] as const).map(([title,kind]) => <section key={kind}><h2>{title}</h2><div className="grid">{entries.filter(e=>e.kind===kind).slice(0,4).map(card)}</div>{!entries.some(e=>e.kind===kind) && <p className="empty">등록된 항목이 없습니다.</p>}</section>)}
-          <section className="card"><h2>최근 활동</h2>{[...entries].sort((a,b) => b.updated_at.localeCompare(a.updated_at)).slice(0,6).map(entry=><div className="row" key={entry.id}><span>{labels[entry.kind]} · {entry.title}</span><small>{new Date(entry.updated_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})}</small></div>)}</section></>}/>
+          <section className="card"><h2>최근 활동</h2>{activity.length === 0 && <p>최근 활동이 없습니다.</p>}{activity.map(event=><div className="row" key={event.id}><span>{personName(event.actor_id)} · {event.item_kind === 'evaluation' ? '평가' : labels[event.item_kind]} {actionLabels[event.operation]} · {event.item_title}</span><small>{new Date(event.created_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})}</small></div>)}</section></>}/>
         {Object.entries(kinds).map(([path,kind]) => <Route key={path} path={path} element={<Listing key={kind} kind={kind} entries={entries.filter(entry=>entry.kind===kind)} members={members} average={average} card={card} add={()=>setEditor({kind})}/>}/>)}
         <Route path="ideas/:id" element={<IdeaDetail ideas={ideas} render={details} edit={entry=>setEditor({kind:'idea',entry})} duplicate={duplicate}/>}/>
         <Route path="scores" element={<><h1>아이디어 평가</h1><div className="actions"><button onClick={() => download('평가.csv',csv([['아이디어','평균','참여 인원','분류'],...ranked.map(idea=>[idea.title,prettyScore(idea.id),String(scores.filter(score=>score.idea_id===idea.id).length),excluded(idea)?'제외':'일반'])]))}>CSV 다운로드</button></div><h2>일반 순위</h2>{ranked.filter(i=>!excluded(i)).map(idea=><div key={idea.id}>{scoreForm(idea)}</div>)}{ranked.some(excluded) && <><h2>제외된 아이디어</h2>{ranked.filter(excluded).map(idea=><div key={idea.id}>{scoreForm(idea)}</div>)}</>}</>}/>
